@@ -1,0 +1,126 @@
+//@version=5
+indicator("Combined Rating", overlay=true, max_lines_count=300, max_labels_count=300, calc_bars_count=300)
+
+// Config
+atr_length = 10 //Число свечей для рассчёта АТР
+spread_ratio = 0.5 //Коэффициент для того чтобы отобрать свечу, у которой тело > (spread_ratio*размах)
+sma_length = 10 //Длина SMA
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Рассчёт рейтинга характера японской свечи
+get_candle_rating() =>
+    candle_range = high - low  // Размах текущей свечи
+    body = math.abs(close - open) // Тело текущей свечи
+
+    atr_value = ta.atr(atr_length)
+    is_unworking_candle = candle_range < 0.5 * atr_value //Признак несущественной свечи
+
+    is_bullish = close > open //Признак бычьей свечи
+    is_bearish = close < open //Признак медвежьей свечи
+
+    if is_unworking_candle
+        0 // Если размах свечи меньше 0.5 АТР
+
+    else if is_bearish and (high-open) > (0.5*candle_range)
+        -1 // Если верхняя тень на медвежьей свече > половины размаха
+    else if is_bullish and (high-close) > (0.5*candle_range)
+        -1 // Если верхняя тень на бычьей свече > половины размаха
+
+    else if is_bullish and (open-low) > (0.5*candle_range)
+        1 // Если нижняя тень на бычьей свече > половины размаха
+    else if is_bearish and (close-low) > (0.5*candle_range)
+        1 // Если нижняя тень на медвежьей свече > половины размаха
+
+    else if is_bullish and body > spread_ratio * candle_range
+        1 //Если бычья свеча с хорошим телом
+    else if is_bearish and body > spread_ratio * candle_range
+        -1 //Если медвежья свеча с хорошим телом
+
+    else
+        0 // В остальных случаях
+
+candle_rating = get_candle_rating()
+
+var string plot_position = "above"
+if candle_rating == 0
+    candle_rating := na(candle_rating) ? 1 : candle_rating 
+plot_position := (candle_rating > 0) ? "above" : (candle_rating < 0) ? "below" : plot_position
+plot_position := (candle_rating == 0) ? plot_position[1] : plot_position
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Рассчёт рейтинга перебития текущей свечи относительно предыдущей
+get_candle_rating_overkill() =>
+    var int candle_rating_overkill = 0
+    var int previous_rating = na
+
+    // Условия для бычьих уверенных перебитий
+    if close > open
+        if close > high[1]
+            candle_rating_overkill := 2  // Цена закрытия выше максимума предыдущей свечи
+        else if close < low[1]
+            candle_rating_overkill := -2 // Цена закрытия ниже минимума предыдущей свечи
+        else if previous_rating == 2
+            candle_rating_overkill := 1 // Было +2, но текущая свеча внутри диапазона
+        else
+            candle_rating_overkill := -1 // Условие перебития не выполняется
+
+    // Условия для медвежьих уверенных перебитий
+    else if close < open
+        if close < low[1]
+            candle_rating_overkill := -2 // Цена закрытия ниже минимума предыдущей свечи
+        else if close > high[1]
+            candle_rating_overkill := 2  // Цена закрытия выше максимума предыдущей свечи
+        else if previous_rating == -2
+            candle_rating_overkill := -1 // Было -2, но текущая свеча внутри диапазона
+        else
+            candle_rating_overkill := 1 // Условие перебития не выполняется
+
+    // Условия для нулевых пин-баров
+    else if close == open
+        if (open-low) < (high-open)
+            candle_rating_overkill := 1 // тень вверх больше
+        else if (open-low) > (high-open)
+            candle_rating_overkill := -1 // тень вниз больше
+
+    previous_rating := candle_rating_overkill // Обновление предыдущего рейтинга
+
+candle_rating_overkill = get_candle_rating_overkill()
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Рассчёт рейтинга наклона SMA
+sma = ta.sma(close, sma_length)  
+trend = na(sma[1]) ? na : (sma > sma[1] ? 1 : -1)
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+// Визуализация
+delta = 0.045 // Смещение меток относительтно предудущей, как (high+low)/2*delta
+
+// Лейблы свечного рейтинга
+if plot_position == "above"
+    label.new(x=bar_index, y=high, text=str.tostring(candle_rating), style=label.style_label_down, yloc=yloc.price, color=color.white, textcolor=#21c52f, size=size.large)
+else
+    label.new(x=bar_index, y=low, text=str.tostring(candle_rating), style=label.style_label_up, yloc=yloc.price, color=color.white, textcolor=#c0281e, size=size.large)
+
+// Лейблы рейтинга перебития свечей
+if candle_rating_overkill>0
+    label.new(x=bar_index, y=high+(high+low)/2*delta, text=str.tostring(candle_rating_overkill), style=label.style_label_down, yloc=yloc.price, color=color.white, textcolor=#46da21, size=size.large)
+if candle_rating_overkill<0
+    label.new(x=bar_index, y=low-(high+low)/2*delta, text=str.tostring(candle_rating_overkill), style=label.style_label_up, yloc=yloc.price, color=color.white, textcolor=#b11105, size=size.large)
+
+// Лейблы рейтинга SMA
+if trend>0
+    label.new(x=bar_index, y=high+(high+low)/2*delta*2.5, text=str.tostring(trend), style=label.style_label_down, yloc=yloc.price, color=color.white, textcolor=#0e0e0d, size=size.large)
+if trend<0
+    label.new(x=bar_index, y=low-(high+low)/2*delta*2.5, text=str.tostring(trend), style=label.style_label_up, yloc=yloc.price, color=color.white, textcolor=#0e0e0d, size=size.large)
+
+// Border lines
+offset = (high + low) / 2 * delta * 1.15
+if bar_index > 1
+    line.new(x1=bar_index - 1, y1=na(high[1]) ? na : high[1] + offset, x2=bar_index, y2=high + offset, color=color.blue, width=1, style=line.style_solid)
+    line.new(x1=bar_index - 1, y1=na(high[1]) ? na : low[1] - offset, x2=bar_index, y2=low - offset, color=color.blue, width=1, style=line.style_solid)
+    line.new(x1=bar_index - 1, y1=na(high[1]) ? na : high[1] + offset*2, x2=bar_index, y2=high + offset*2, color=color.orange, width=1, style=line.style_solid)
+    line.new(x1=bar_index - 1, y1=na(high[1]) ? na : low[1] - offset*2, x2=bar_index, y2=low - offset*2, color=color.orange, width=1, style=line.style_solid)
