@@ -16,7 +16,7 @@ get_candle_rating() =>
     atr_value = ta.atr(atr_length)
     is_unworking_candle = candle_range < 0.5 * atr_value //Признак несущественной свечи
 
-    is_bullish = close > open //Признак бычьей свечи
+    is_bullish = close > open //Признак бычьей свечи 
     is_bearish = close < open //Признак медвежьей свечи
 
     if is_unworking_candle
@@ -26,11 +26,15 @@ get_candle_rating() =>
         -1 // Если верхняя тень на медвежьей свече > половины размаха
     else if is_bullish and (high-close) > (0.5*candle_range)
         -1 // Если верхняя тень на бычьей свече > половины размаха
+    else if is_bearish and (high-open+body) > (0.8*candle_range)
+        -1 // Если (верхняя тень на медвежьей свече + тело) > 80% размаха
 
     else if is_bullish and (open-low) > (0.5*candle_range)
         1 // Если нижняя тень на бычьей свече > половины размаха
     else if is_bearish and (close-low) > (0.5*candle_range)
         1 // Если нижняя тень на медвежьей свече > половины размаха
+    else if is_bullish and (open-low+body) > (0.5*candle_range)
+        1 // Если (нижняя тень на бычьей свече + тело) > 80% размаха   
 
     else if is_bullish and body > spread_ratio * candle_range
         1 //Если бычья свеча с хорошим телом
