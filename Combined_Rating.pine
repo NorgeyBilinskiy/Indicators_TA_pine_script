@@ -33,7 +33,7 @@ get_candle_rating() =>
         1 // Если нижняя тень на бычьей свече > половины размаха
     else if is_bearish and (close-low) > (0.5*candle_range)
         1 // Если нижняя тень на медвежьей свече > половины размаха
-    else if is_bullish and (open-low+body) > (0.5*candle_range)
+    else if is_bullish and (open-low+body) > (0.8*candle_range)
         1 // Если (нижняя тень на бычьей свече + тело) > 80% размаха   
 
     else if is_bullish and body > spread_ratio * candle_range
